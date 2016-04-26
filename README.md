@@ -96,6 +96,18 @@ routes() ->
     ].
 ```
 
+#### Route Fields
+
+Name | Possible Values | Example
+--- | --- | ---
+**name** | `atom()` | `cluster`
+**path** | `string()`, `atom()` | `[["path", "to", thing],["alias", "to", thing]]`
+**methods** | [`'GET'`, `'PUT'`, `'POST'`, `'DELETE'` | `['GET', 'PUT']`
+**provides** | `json`, `binary`, `text`, `html`, `requested`, `any`, `none`, `string()` | `[json]`
+**accepts** | `json`, `binary`, `text`, `html`, `requested`, `any`, `none`, `string()` | `["application/mycustomtype"]`
+**routes** | `wtb_route()` | `[#wtb_route{name=simple}]` or `[wtb:route(simple)]`
+**prefix** | `string()`, `atom()` | `[["prefix", "to", "route"],["alias_prefix", "to", "route"]]`
+
 ### Callbacks
 
 For routes that don't require request data, use this callback format:
@@ -118,14 +130,17 @@ RouteName_CallbackName(wtb_req(), term()) -> {wtb_resp(), term()}.
 
 #### Available Callbacks Per Route:
 
-* `init`
-* `available`
-* `get`
-* `put`
-* `post_path`
-* `post`
-* `delete`
-* `last_modified`
+Name | Description | Example
+--- | --- | ---
+**init** | Define the initial state of a request here. | `myroute_init() -> #state{}.`
+**available** | Continues processing if `true`, renders `503` page if `false` | `myroute_available(_Req) -> true`
+**exists** | Should return `true` or `false`, renders `404` if `false` | `myroute_exists(Req, State) -> Response=get_thing(wrq:path_info(thing, Req)), {true, State#state{response=Response}}.`
+**get** | Should return the contents of an HTTP `GET` request | `myroute_get(Req, State=#state{response=Response}) -> {Response, State}.`
+**put** | Should accept the body from an HTTP `PUT` request | `myroute_put(Req) -> put_thing(wrq:req_body(Req)), [{sucess, true}].`
+**post_path** | If this function exists, then a `POST` is considered a create operation, and `post_path` should create the new resource name | `myroute_post_path() -> "node1".`
+**post** | Should accept the body from an HTTP `POST` request | `myroute_put(Req) -> create_thing(wrq:req_body(Req)), true.`
+**delete** | Should process an HTTP `DELETE` request | `myroute_delete(Req) -> delete_thing(wrq:path_info(thing, Req)), true.`
+**last_modified** | Should return the last modified date of a resource for a route | `myroute_last_modified(Req) -> {{2021,1,1},{0,0,0}}.`
 
 ### Example Resource
 
