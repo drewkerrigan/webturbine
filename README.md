@@ -147,8 +147,6 @@ routes() ->
      ])
     ].
 
-%% Route Callbacks:
-
 cluster_exists(Req) -> 
     ClusterKey = wrq:path_info(cluster, Req),
     % Some logic with ClusterKey
