@@ -102,7 +102,7 @@ Name | Possible Values | Example
 --- | --- | ---
 **name** | `atom()` | `cluster`
 **path** | `string()`, `atom()` | `[["path", "to", thing],["alias", "to", thing]]`
-**methods** | [`'GET'`, `'PUT'`, `'POST'`, `'DELETE'` | `['GET', 'PUT']`
+**methods** | `'GET'`, `'PUT'`, `'POST'`, `'DELETE'` | `['GET', 'PUT']`
 **provides** | `json`, `binary`, `text`, `html`, `requested`, `any`, `none`, `string()` | `[json]`
 **accepts** | `json`, `binary`, `text`, `html`, `requested`, `any`, `none`, `string()` | `["application/mycustomtype"]`
 **routes** | `wtb_route()` | `[#wtb_route{name=simple}]` or `[wtb:route(simple)]`
