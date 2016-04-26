@@ -50,7 +50,7 @@ route_test(_Config) ->
     Context = start_server(webmachine_router, "127.0.0.1", DL),
 
     {ok, "200", _, "something"} = 
-        ibrowse:send_req(url(Context, "echo/something"), [], get, [], []),
+        ibrowse:send_req(url(Context, "base/echo/something"), [], get, [], []),
     {ok, "404", _, _} = 
         ibrowse:send_req(url(Context, "clusters/nothere"), [], get, [], []),
     {ok, "200", _, "here"} = 

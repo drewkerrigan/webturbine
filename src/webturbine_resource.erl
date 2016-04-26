@@ -16,37 +16,24 @@
 %% Optional Route Behaviour Callbacks
 %%====================================================================
 
-%% Format: RouteName_CallbackName(wtb_req()) | CallbackName(wtb_req()) -> 
+%% For routes that don't require request data:
+%% -callback RouteName_CallbackName() -> 
 %%     wtb_resp().
 
-%% -callback RouteName_available(wtb_req())->
+%% For routes that do require request data:
+%% -callback RouteName_CallbackName(wtb_req()) -> 
 %%     wtb_resp().
 
-%% -callback RouteName_exists(wtb_req())->
-%%     wtb_resp().
+%% For routes that require a resource defined state:
+%% -callback RouteName_CallbackName(wtb_req(), term()) -> 
+%%     {wtb_resp(), term()}.
 
-%% -callback RouteName_get(wtb_req())->
-%%     wtb_resp().
-
-%% -callback RouteName_put(wtb_req())->
-%%     wtb_resp().
-
-%% -callback RouteName_post_path(wtb_req())->
-%%     wtb_resp().
-
-%% -callback RouteName_post(wtb_req())->
-%%     wtb_resp().
-
-%% -callback RouteName_delete(wtb_req())->
-%%     wtb_resp().
-
-%% -callback RouteName_last_modified(wtb_req()) ->
-%%     wtb_resp().
-
-%%====================================================================
-%% API functions
-%%====================================================================
-
-%%====================================================================
-%% Internal functions
-%%====================================================================
+%% Available Callbacks Per Route:
+%%   * init
+%%   * available
+%%   * get
+%%   * put
+%%   * post_path
+%%   * post
+%%   * delete
+%%   * last_modified

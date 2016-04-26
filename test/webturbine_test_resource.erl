@@ -19,13 +19,13 @@
 routes() ->
     [
      #wtb_route{name = echo, 
+                prefix = [["base"]],
                 path = [["echo", this]],
                 provides = [text]},
      #wtb_route{name = cluster,
                 path = [["clusters", cluster]],
                 routes = [
-                          #wtb_route{name = node,
-                                     path = [["nodes", node]]}
+                          wtb:route(node, [["nodes", node]])
                          ]},
      wtb:route(short)
     ].
@@ -47,8 +47,7 @@ cluster_get(_, State=#state{response=Response}) ->
 
 node_exists(Req) ->
     {ClusterExists, _} = cluster_exists(Req, #state{}),
-    ClusterExists.
-        
+    ClusterExists.        
 node_get(Req) ->
     "Cluster: " ++ wrq:path_info(cluster, Req) ++ ", Node: " ++ wrq:path_info(node, Req).
 
