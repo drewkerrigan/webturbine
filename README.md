@@ -79,9 +79,9 @@ That single `#wtb_route{}` definition will result in the following webmachine ro
 
 ```
 GET /this/is/my/route/#{var}
-GET /this/is/my/route/#{var}/part/two/var2
+GET /this/is/my/route/#{var}/part/two/#{var2}
 GET /this/is/my/alias/#{var}
-GET /this/is/my/alias/#{var}/part/two/var2
+GET /this/is/my/alias/#{var}/part/two/#{var2}
 ```
 
 Here is the same route definition using the shorthand `wtb:route/7`:
