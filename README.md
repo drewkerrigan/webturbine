@@ -42,17 +42,13 @@ Your resource module should implement the `webturbine_resource` behaviour like s
 
 ```
 -module(myresource).
-
+-behaviour(webturbine_resource).
 -export([something_get/0]).
 
--behaviour(webturbine_resource).
-
 %% Behaviour Callbacks:
-
 routes() -> [wtb:route(something)].
 
 %% Route Callbacks:
-
 something_get() -> "You got something!".
 ```
 
