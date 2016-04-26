@@ -71,7 +71,7 @@ routes() ->
                  path = [["part", "two", var2]],
                  provides = [json]
          ],
-         prefix = ["this", "is"]}
+         prefix = [["this", "is"]]}
     ].
 ```
 
@@ -92,7 +92,7 @@ routes() ->
      route(myroute, [["my", "route", var],["my", "alias", var]], 
            ['GET'], [json], [any], [
                route(myroute2, [["part", "two", var2]], [json])
-           ], ["this", "is"])
+           ], [["this", "is"]])
     ].
 ```
 
