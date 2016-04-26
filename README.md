@@ -36,7 +36,69 @@ WebSpec = {webmachine_mochiweb,
 
 ## Resource Definition
 
+### Behaviour
+
+Your resource module should implement the `webturbine_resource` behaviour like so:
+
+```
+-module(myresource).
+
+-export([something_get/0]).
+
+-behaviour(webturbine_resource).
+
+%% Behaviour Callbacks:
+
+routes() -> [wtb:route(something)].
+
+%% Route Callbacks:
+
+something_get() -> "You got something!".
+```
+
 ### Routes
+
+Routes can be specified as records, or as function calls to `wtb:route/1-7`. Here is an example route which uses all of the available fields:
+
+```
+routes() ->
+    [
+     #wtb_route{
+         name = myroute,
+         path = [["my", "route", var],["my", "alias", var]],
+         methods = ['GET'],
+         provides = [json],
+         accepts = [any],
+         routes = [
+             #wtb_route{
+                 name = myroute2,
+                 path = [["part", "two", var2]],
+                 provides = [json]
+         ],
+         prefix = ["this", "is"]}
+    ].
+```
+
+That single `#wtb_route{}` definition will result in the following webmachine routes getting created:
+
+```
+GET /this/is/my/route/#{var}
+GET /this/is/my/route/#{var}/part/two/var2
+GET /this/is/my/alias/#{var}
+GET /this/is/my/alias/#{var}/part/two/var2
+```
+
+Here is the same route definition using the shorthand `wtb:route/7`:
+
+```
+routes() ->
+    [
+     route(myroute, [["my", "route", var],["my", "alias", var]], 
+           ['GET'], [json], [any], [
+               route(myroute2, [["part", "two", var2]], [json])
+           ], ["this", "is"])
+    ].
+```
 
 ### Callbacks
 
@@ -60,11 +122,52 @@ RouteName_CallbackName(wtb_req(), term()) -> {wtb_resp(), term()}.
 
 #### Available Callbacks Per Route:
 
-* init
-* available
-* get
-* put
-* post_path
-* post
-* delete
-* last_modified
+* `init`
+* `available`
+* `get`
+* `put`
+* `post_path`
+* `post`
+* `delete`
+* `last_modified`
+
+### Example Resource
+
+`cluster_manager_res.erl`:
+
+```
+-module(cluster_manager_res).
+-behaviour(webturbine_resource).
+-export([_get/0]).
+
+routes() -> 
+    [
+     wtb:route(cluster, [["clusters", cluster]], ['GET'], [json], [any], [
+         wtb:route(node, [["nodes", node]], ['GET'], [json])
+     ])
+    ].
+
+%% Route Callbacks:
+
+cluster_exists(Req) -> 
+    ClusterKey = wrq:path_info(cluster, Req),
+    % Some logic with ClusterKey
+    true.
+cluster_get(Req) ->
+    ClusterKey = list_to_binary(wrq:path_info(cluster, Req)),
+    [{ClusterKey, [{nodes, [node1, node2, node3]}]}].
+    
+node_exists(Req) -> 
+    NodeKey = wrq:path_info(node, Req),
+    case cluster_exists(Req) of
+        true ->
+            %% Some logic with NodeKey
+            true;
+        false ->
+            false
+    end.
+node_get(Req) ->
+    ClusterKey = list_to_binary(wrq:path_info(cluster, Req)),
+    NodeKey = list_to_binary(wrq:path_info(node, Req)),
+    [{NodeKey, [{cluster, ClusterKey},{host, <<"localhost:8098">>}]}].
+```
