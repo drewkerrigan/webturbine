@@ -23,7 +23,8 @@
 
 -record(ctx, {
           wtb_resource :: module(),
-          wtb_route :: wtb_route()
+          wtb_route :: wtb_route(),
+          request_state :: any()
          }).
 
 %%====================================================================
@@ -48,8 +49,10 @@ service_available(ReqData, Ctx=#ctx{wtb_resource = Resource}) ->
     case get_route(Resource:routes(), ReqData) of
         #wtb_route{}=R ->
             Ctx1 = Ctx#ctx{wtb_route = R},
-            Response = try_callback(available, true, ReqData, Ctx1),
-            bool_resp(Response, ReqData, Ctx1);
+            {ReqState, Ctx2} = try_callback(init, undefined, ReqData, Ctx1),
+            Ctx3 = Ctx2#ctx{request_state = ReqState},
+            {Response, Ctx4} = try_callback(available, true, ReqData, Ctx3),
+            bool_resp(Response, ReqData, Ctx4);
         _ ->
             {false, ReqData, Ctx}
     end.
@@ -66,37 +69,42 @@ content_types_accepted(ReqData, Ctx = #ctx{wtb_route = Route}) ->
     {Accepts, ReqData, Ctx}.
 
 resource_exists(ReqData, Ctx) ->
-    Response = try_callback(exists, true, ReqData, Ctx),
-    bool_resp(Response, ReqData, Ctx).
+    {Response, Ctx1} = try_callback(exists, true, ReqData, Ctx),
+    bool_resp(Response, ReqData, Ctx1).
 
 delete_resource(ReqData, Ctx) ->
-    Response = try_callback(delete, true, ReqData, Ctx),
-    bool_resp(Response, ReqData, Ctx).
+    {Response, Ctx1} = try_callback(delete, true, ReqData, Ctx),
+    bool_resp(Response, ReqData, Ctx1).
 
 provide_content(ReqData, Ctx) ->
-    Response = try_callback(get, {error, not_found}, ReqData, Ctx),
-    handle_resp(Response, ReqData, Ctx).
+    {Response, Ctx1} = try_callback(get, {error, not_found}, ReqData, Ctx),
+    handle_resp(Response, ReqData, Ctx1).
 
 accept_content(ReqData, Ctx) ->
-    Response = try_callback(put, false, ReqData, Ctx),
-    bool_resp(Response, ReqData, Ctx).
+    {Response, Ctx1} = try_callback(put, false, ReqData, Ctx),
+    bool_resp(Response, ReqData, Ctx1).
 
 process_post(ReqData, Ctx) ->
-    Response = try_callback(post, false, ReqData, Ctx),
-    bool_resp(Response, ReqData, Ctx).
+    {Response, Ctx1} = try_callback(post, false, ReqData, Ctx),
+    bool_resp(Response, ReqData, Ctx1).
 
 post_is_create(ReqData, Ctx = #ctx{wtb_resource = Resource, wtb_route = Route}) ->    
     RouteName = Route#wtb_route.name,
     Callback = list_to_atom(atom_to_list(RouteName) ++ "_post_path"),
-    {erlang:function_exported(Resource, Callback, 1), ReqData, Ctx}.
+    case find_callback(Resource, Callback, 2) of
+        {error, callback_not_implemented} ->
+            {false, ReqData, Ctx};
+        _ ->
+            {true, ReqData, Ctx}
+    end.
 
 create_path(ReqData, Ctx) ->
-    Response = try_callback(post_path, undefined, ReqData, Ctx),
-    {Response, ReqData, Ctx}.
+    {Response, Ctx1} = try_callback(post_path, undefined, ReqData, Ctx),
+    {Response, ReqData, Ctx1}.
 
 last_modified(ReqData, Ctx) ->
-    Response = try_callback(last_modified, undefined, ReqData, Ctx),
-    {Response, ReqData, Ctx}.
+    {Response, Ctx1} = try_callback(last_modified, undefined, ReqData, Ctx),
+    {Response, ReqData, Ctx1}.
 
 %%====================================================================
 %% Internal functions
@@ -104,24 +112,28 @@ last_modified(ReqData, Ctx) ->
 
 get_route([], _ReqData) ->
     undefined;
-get_route([Route=#wtb_route{prefix=[],path=Paths} | Rest], ReqData) ->
+get_route([Route=#wtb_route{routes=[], prefix=[],path=Paths} | Rest], ReqData) ->
     case get_route_path([], Paths, Route, ReqData) of
         undefined ->
             get_route(Rest, ReqData);
         R -> R
     end;
-get_route([Route=#wtb_route{prefix=Bases,path=[]} | Rest], ReqData) ->
+get_route([Route=#wtb_route{routes=[], prefix=Bases,path=[]} | Rest], ReqData) ->
     case get_route_path([], Bases, Route, ReqData) of
         undefined ->
             get_route(Rest, ReqData);
         R -> R
     end;
-get_route([Route=#wtb_route{prefix=Bases,path=Paths} | Rest], ReqData) ->
+get_route([Route=#wtb_route{routes=[], prefix=Bases,path=Paths} | Rest], ReqData) ->
     case get_route_base(Bases, Paths, Route, ReqData) of
         undefined ->
             get_route(Rest, ReqData);
         R -> R
-    end.
+    end;
+get_route([Route=#wtb_route{routes=[SubRoute|SubRest], prefix=Bases,path=Paths}=Route | Rest], ReqData) ->
+    SubRoute1 = SubRoute#wtb_route{prefix = Bases ++ Paths ++ SubRoute#wtb_route.prefix},
+    Route1 = Route#wtb_route{routes = SubRest},
+    get_route([Route1, SubRoute1 | Rest], ReqData).
 
 get_route_base([], _, _, _) ->
     undefined;
@@ -160,12 +172,16 @@ expand_path([Part|Rest], ReqData, Acc) when is_atom(Part) ->
 
 build_wm_routes({_R, []}, Acc) ->
     lists:reverse(lists:flatten(Acc));
-build_wm_routes({R, [#wtb_route{prefix = [], path = Paths} | Rest]}, Acc) ->
+build_wm_routes({R, [#wtb_route{routes = [], prefix = [], path = Paths} | Rest]}, Acc) ->
     build_wm_routes({R, Rest}, [build_wm_route(R, [], Paths, []) | Acc]);
-build_wm_routes({R, [#wtb_route{prefix = Bases, path = []} | Rest]}, Acc) ->
+build_wm_routes({R, [#wtb_route{routes = [], prefix = Bases, path = []} | Rest]}, Acc) ->
     build_wm_routes({R, Rest}, [build_wm_route(R, [], Bases, []) | Acc]);
-build_wm_routes({R, [#wtb_route{prefix = Bases, path = Paths} | Rest]}, Acc) ->
-    build_wm_routes({R, Rest}, [build_wm_routes(R, Bases, Paths, []) | Acc]).
+build_wm_routes({R, [#wtb_route{routes = [], prefix = Bases, path = Paths} | Rest]}, Acc) ->
+    build_wm_routes({R, Rest}, [build_wm_routes(R, Bases, Paths, []) | Acc]);
+build_wm_routes({R, [#wtb_route{routes = [SubRoute|SubRest], prefix = Bases, path = Paths}=Route | Rest]}, Acc) ->
+    SubRoute1 = SubRoute#wtb_route{prefix = Bases ++ Paths ++ SubRoute#wtb_route.prefix},
+    Route1 = Route#wtb_route{routes = SubRest},
+    build_wm_routes({R, [Route1, SubRoute1 | Rest]}, Acc).
 
 build_wm_routes(_R, [], _, Acc) ->
     Acc;
@@ -177,15 +193,32 @@ build_wm_route(_, _, [], Acc) ->
 build_wm_route(R, Base, [Path|Rest], Acc) ->
     build_wm_route(R, Base, Rest, [{Base ++ Path, ?MODULE, [R]}|Acc]).
 
-try_callback(CbName, Default, ReqData, #ctx{wtb_resource = Resource,
-                              wtb_route = Route}) ->
+try_callback(CbName, Default, ReqData, Ctx=#ctx{wtb_resource = Resource,
+                                                wtb_route = Route,
+                                                request_state = State}) ->
     RouteName = Route#wtb_route.name,
     Callback = list_to_atom(atom_to_list(RouteName) ++ "_" ++ atom_to_list(CbName)),
-    case erlang:function_exported(Resource, Callback, 1) of
+    case find_callback(Resource, Callback, 2) of
+        {R,C,0} -> 
+            {R:C(), Ctx};
+        {R,C,1} -> 
+            {R:C(ReqData), Ctx};
+        {R,C,2} -> 
+            {Result, State1} = R:C(ReqData, State),
+            Ctx1 = Ctx#ctx{request_state = State1},
+            {Result, Ctx1};
+        {error, callback_not_implemented} ->
+            {Default, Ctx}
+    end.
+
+find_callback(_Resource, _Callback, -1) ->
+    {error, callback_not_implemented};
+find_callback(Resource, Callback, MaxArity) ->
+    case erlang:function_exported(Resource, Callback, MaxArity) of
         true ->
-            Resource:Callback(ReqData);
+            {Resource, Callback, MaxArity};
         false ->
-            Default
+            find_callback(Resource, Callback, MaxArity - 1)
     end.
 
 bool_resp(Response, ReqData, Ctx) when is_boolean(Response) ->

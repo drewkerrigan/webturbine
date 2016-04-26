@@ -4,7 +4,7 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--define(EPHEMERAL_PORT, 9898).
+-define(EPHEMERAL_PORT, 0).
 
 -record(integration_state, {
           webmachine_sup,
@@ -22,7 +22,6 @@ init_per_suite(Config) ->
     Config.
 
 end_per_suite(_Config) ->
-    %% stop_server(proplists:get_value(context, Config)).
     ok.
 
 init_per_group(_GroupName, Config) ->
@@ -41,18 +40,31 @@ groups() ->
     [].
 
 all() -> 
-    [echo_test].
+    [route_test].
 
-echo_test() -> 
+route_test() -> 
     [].
 
-echo_test(_Config) -> 
+route_test(_Config) -> 
     DL = webturbine_router:dispatch([webturbine_test_resource]),
     Context = start_server(webmachine_router, "127.0.0.1", DL),
-    URL = url(Context, "echo/something"),
-    {ok, "200", _, "something"} = ibrowse:send_req(URL, [], get, [], []),
+
+    {ok, "200", _, "something"} = 
+        ibrowse:send_req(url(Context, "echo/something"), [], get, [], []),
+    {ok, "404", _, _} = 
+        ibrowse:send_req(url(Context, "clusters/nothere"), [], get, [], []),
+    {ok, "200", _, "here"} = 
+        ibrowse:send_req(url(Context, "clusters/here"), [], get, [], []),
+    {ok, "404", _, _} = 
+        ibrowse:send_req(url(Context, "clusters/nothere/nodes/any"), [], get, [], []),
+    {ok, "200", _, "Cluster: here, Node: mynode"} = 
+        ibrowse:send_req(url(Context, "clusters/here/nodes/mynode"), [], get, [], []),
+    {ok, "200", _, "{\"its\":\"json\"}"} = 
+        ibrowse:send_req(url(Context, "short"), [], get, [], []),
+
     stop_server(Context),
     ok.
+    
 
 %%====================================================================
 %% Internal functions

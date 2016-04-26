@@ -13,10 +13,21 @@
                       ?ACCEPT(?TEXT_TYPE),
                       ?ACCEPT(?JSON_TYPE)]).
 
+-type wtb_route_name() :: atom().
+-type wtb_route_path() :: [string() | atom()].
 -type wtb_type() :: json | binary | text | html | requested | any | none | string().
+-type wtb_method() :: 'GET' | 'PUT' | 'POST' | 'DELETE'.
+
+-record(wtb_route, {name :: wtb_route_name(),
+                    path :: [wtb_route_path()],
+                    methods = ['GET'] :: [wtb_method()],
+                    provides = [any] :: [wtb_type()],
+                    accepts = [any] :: [wtb_type()],
+                    routes = [] :: [wtb_route()],
+                    prefix = [] :: [wtb_route_path()]}).
+-type wtb_route() :: #wtb_route{}.
 
 -type wtb_req() :: #wm_reqdata{}.
-
 -type wtb_json_resp() :: [{atom() | binary(), term()}].
 -type wtb_text_resp() :: string().
 -type wtb_binary_resp() :: binary().
@@ -28,15 +39,3 @@
                     {error, not_found} |
                     {error, term()} | 
                     wtb_content().
-
--type wtb_callback_def() :: {wtb_route_name(), wtb_type(), wtb_req()}.
-
--type wtb_route_name() :: atom().
--type wtb_route_path() :: [string() | atom()].
--record(wtb_route, {name :: wtb_route_name(),
-                    prefix = [] :: [wtb_route_path()],
-                    path :: [wtb_route_path()],
-                    methods = ['GET'] :: ['GET' | 'PUT' | 'POST' | 'DELETE'],
-                    accepts = [any] :: [wtb_type()],
-                    provides = [any] :: [wtb_type()]}).
--type wtb_route() :: #wtb_route{}.
