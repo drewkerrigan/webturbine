@@ -138,7 +138,10 @@ RouteName_CallbackName(wtb_req(), term()) -> {wtb_resp(), term()}.
 ```
 -module(cluster_manager_res).
 -behaviour(webturbine_resource).
--export([_get/0]).
+-export([cluster_exists/1,
+         cluster_get/1,
+         node_exists/1,
+         node_get/1]).
 
 routes() -> 
     [
@@ -147,14 +150,18 @@ routes() ->
      ])
     ].
 
+%% Cluster
 cluster_exists(Req) -> 
     ClusterKey = wrq:path_info(cluster, Req),
     % Some logic with ClusterKey
     true.
 cluster_get(Req) ->
     ClusterKey = list_to_binary(wrq:path_info(cluster, Req)),
-    [{ClusterKey, [{nodes, [node1, node2, node3]}]}].
+    [{ClusterKey, [
+        {nodes, [node1, node2, node3]}
+    ]}].
     
+%% Node
 node_exists(Req) -> 
     NodeKey = wrq:path_info(node, Req),
     case cluster_exists(Req) of
@@ -167,5 +174,8 @@ node_exists(Req) ->
 node_get(Req) ->
     ClusterKey = list_to_binary(wrq:path_info(cluster, Req)),
     NodeKey = list_to_binary(wrq:path_info(node, Req)),
-    [{NodeKey, [{cluster, ClusterKey},{host, <<"localhost:8098">>}]}].
+    [{NodeKey, [
+        {cluster, ClusterKey},
+        {host, <<"localhost:8098">>}]
+    }].
 ```
