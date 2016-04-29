@@ -46,7 +46,7 @@ Your resource module should implement the `webturbine_resource` behaviour like s
 -export([something_get/0]).
 
 %% Behaviour Callbacks:
-routes() -> [wtb:route(something)].
+routes() -> [wtb_route:new(something)].
 
 %% Route Callbacks:
 something_get() -> "You got something!".
@@ -54,7 +54,7 @@ something_get() -> "You got something!".
 
 ### Routes
 
-Routes can be specified as records, or as function calls to `wtb:route/1-7`. Here is an example route which uses all of the available fields:
+Routes can be specified as records, or as function calls to `wtb_route:new/1-3`. Here is an example route which uses all of the available fields:
 
 ```
 routes() ->
@@ -84,16 +84,21 @@ GET /this/is/my/alias/#{var}
 GET /this/is/my/alias/#{var}/part/two/#{var2}
 ```
 
-Here is the same route definition using the shorthand `wtb:route/7`:
+Here is the same route definition using `wtb_route:new`:
 
 ```
 routes() ->
-    [
-     route(myroute, [["my", "route", var],["my", "alias", var]], 
-           ['GET'], [json], [any], [
-               route(myroute2, [["part", "two", var2]], [json])
-           ], [["this", "is"]])
-    ].
+    SubRoute = route(myroute2, [["part", "two", var2]]),
+    SubRoute1 = wtb_route:set_field(provides, [json], SubRoute),
+    
+    Route = wtb_route:new(
+        myroute, 
+        [["my", "route", var],["my", "alias", var]], 
+        ['GET'])),
+    Route1 = wtb_route:set_field(provides, [json], Route),
+    Route2 = wtb_route:set_field(accepts, [any], Route1),
+    Route3 = wtb_route:set_field(prefix, [["this", "is"]], Route2),
+    [ Route3 ].
 ```
 
 #### Route Fields
@@ -102,11 +107,14 @@ Name | Possible Values | Example
 --- | --- | ---
 **name** | `atom()` | `cluster`
 **path** | `string()`, `atom()` | `[["path", "to", thing],["alias", "to", thing]]`
-**methods** | `'GET'`, `'PUT'`, `'POST'`, `'DELETE'` | `['GET', 'PUT']`
-**provides** | `json`, `binary`, `text`, `html`, `requested`, `any`, `none`, `string()` | `[json]`
-**accepts** | `json`, `binary`, `text`, `html`, `requested`, `any`, `none`, `string()` | `["application/mycustomtype"]`
-**routes** | `wtb_route()` | `[#wtb_route{name=simple}]` or `[wtb:route(simple)]`
-**prefix** | `string()`, `atom()` | `[["prefix", "to", "route"],["alias_prefix", "to", "route"]]`
+**methods** (optional) | `'GET'`, `'PUT'`, `'POST'`, `'DELETE'` | `['GET', 'PUT']`
+**provides** (optional) | `json`, `binary`, `text`, `html`, `requested`, `any`, `none`, `string()` | `[json]`
+**accepts** (optional) | `json`, `binary`, `text`, `html`, `requested`, `any`, `none`, `string()` | `["application/mycustomtype"]`
+**routes** (optional) | `wtb_route()` | `[#wtb_route{name=simple}]` or `[wtb_route:new(simple)]`
+**prefix** (optional) | `string()`, `atom()` | `[["prefix", "to", "route"],["alias_prefix", "to", "route"]]`
+**resource** (optional, overrides) | `module()` | `webturbine_static_res`
+**handlers** (optional) | `[{atom(), function()}]` | `[{myroute_get, fun(_,S)-> {"myroute_value",S} end}]`
+**options** (optional) | `[{atom(), term()}]` | `[{mykey, <<"myvalue">>}]`
 
 ### Callbacks
 
@@ -128,7 +136,7 @@ For routes that require a resource defined state, use this callback format:
 RouteName_CallbackName(wtb_req(), term()) -> {wtb_resp(), term()}.
 ```
 
-#### Available Callbacks Per Route:
+###### Available Callbacks Per Route: ######
 
 Name | Description | Example
 --- | --- | ---
@@ -141,6 +149,7 @@ Name | Description | Example
 **post** | Should accept the body from an HTTP `POST` request | `myroute_put(Req) -> create_thing(wrq:req_body(Req)), true.`
 **delete** | Should process an HTTP `DELETE` request | `myroute_delete(Req) -> delete_thing(wrq:path_info(thing, Req)), true.`
 **last_modified** | Should return the last modified date of a resource for a route | `myroute_last_modified(Req) -> {{2021,1,1},{0,0,0}}.`
+**etag** | Should return ETag header for a resource | `myroute_etag(Req, Response) -> {webmachine_util:quoted_string(hash_body(Response)), Response}`
 
 ### Example Resource
 
@@ -155,11 +164,11 @@ Name | Description | Example
          node_get/1]).
 
 routes() -> 
-    [
-     wtb:route(cluster, [["clusters", cluster]], ['GET'], [json], [any], [
-         wtb:route(node, [["nodes", node]], ['GET'], [json])
-     ])
-    ].
+    ClusterRoute = wtb_route:new(cluster, [["clusters", cluster]]),
+    ClusterRoute1 = wtb_route:set_field(routes, [
+        wtb_route:new(node, [["nodes", node]])
+        ]),
+    [ClusterRoute1].
 
 %% Cluster
 cluster_exists(Req) -> 
