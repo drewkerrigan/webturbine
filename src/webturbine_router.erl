@@ -1,8 +1,5 @@
 -module(webturbine_router).
 
-%% API exports
--export([dispatch/1]).
-
 %% Webmachine exports
 -export([init/1,
          service_available/2,
@@ -18,7 +15,6 @@
          create_path/2,
          last_modified/2]).
 
-
 -include("webturbine.hrl").
 
 -record(ctx, {
@@ -26,16 +22,6 @@
           wtb_route :: wtb_route(),
           request_state :: any()
          }).
-
-%%====================================================================
-%% API
-%%====================================================================
-
--spec dispatch([module()]) -> [{[string() | atom], module(), [term()]}].
-dispatch(Resources) ->
-    WtbRoutes = [ {R, R:routes()} || R <- Resources ],
-    WmRoutes = [ build_wm_routes(WtbR, []) || WtbR <- WtbRoutes ],
-    lists:flatten(WmRoutes).
 
 %%====================================================================
 %% Webmachine Callbacks
@@ -46,15 +32,22 @@ init([Resource]) ->
     {ok, Ctx}.
 
 service_available(ReqData, Ctx=#ctx{wtb_resource = Resource}) ->
-    case get_route(Resource:routes(), ReqData) of
-        #wtb_route{}=R ->
-            Ctx1 = Ctx#ctx{wtb_route = R},
-            {ReqState, Ctx2} = try_callback(init, undefined, ReqData, Ctx1),
-            Ctx3 = Ctx2#ctx{request_state = ReqState},
-            {Response, Ctx4} = try_callback(available, true, ReqData, Ctx3),
-            bool_resp(Response, ReqData, Ctx4);
+    io:format("INFO: ~p", [wrq:path_info(ReqData)]),
+    case find_callback(Resource, routes, 0) of
+        {error, callback_not_implemented} ->
+            {false, ReqData, Ctx};
         _ ->
-            {false, ReqData, Ctx}
+            %% case webturbine:route_from_path(Resource:routes(), ReqData) of
+            case webturbine:route_from_path(Resource:routes(), wrq:path(ReqData), wrq:path_info(ReqData)) of
+                #wtb_route{}=R ->
+                    Ctx1 = Ctx#ctx{wtb_route = R},
+                    {ReqState, Ctx2} = try_callback(init, undefined, ReqData, Ctx1),
+                    Ctx3 = Ctx2#ctx{request_state = ReqState},
+                    {Response, Ctx4} = try_callback(available, true, ReqData, Ctx3),
+                    bool_resp(Response, ReqData, Ctx4);
+                _ ->
+                    {false, ReqData, Ctx}
+            end
     end.
 
 allowed_methods(ReqData, Ctx = #ctx{wtb_route = Route}) ->
@@ -109,89 +102,6 @@ last_modified(ReqData, Ctx) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
-
-get_route([], _ReqData) ->
-    undefined;
-get_route([Route=#wtb_route{routes=[], prefix=[],path=Paths} | Rest], ReqData) ->
-    case get_route_path([], Paths, Route, ReqData) of
-        undefined ->
-            get_route(Rest, ReqData);
-        R -> R
-    end;
-get_route([Route=#wtb_route{routes=[], prefix=Bases,path=[]} | Rest], ReqData) ->
-    case get_route_path([], Bases, Route, ReqData) of
-        undefined ->
-            get_route(Rest, ReqData);
-        R -> R
-    end;
-get_route([Route=#wtb_route{routes=[], prefix=Bases,path=Paths} | Rest], ReqData) ->
-    case get_route_base(Bases, Paths, Route, ReqData) of
-        undefined ->
-            get_route(Rest, ReqData);
-        R -> R
-    end;
-get_route([Route=#wtb_route{routes=[SubRoute|SubRest], prefix=Bases,path=Paths}=Route | Rest], ReqData) ->
-    SubRoute1 = SubRoute#wtb_route{prefix = Bases ++ Paths ++ SubRoute#wtb_route.prefix},
-    Route1 = Route#wtb_route{routes = SubRest},
-    get_route([Route1, SubRoute1 | Rest], ReqData).
-
-get_route_base([], _, _, _) ->
-    undefined;
-get_route_base([Base|Rest], Paths, Route, ReqData) ->
-    case get_route_path(Base, Paths, Route, ReqData) of
-        undefined ->
-            get_route_base(Rest, Paths, Route, ReqData);
-        R -> R
-    end.
-
-get_route_path(_, [], _, _) ->
-    undefined;
-get_route_path(Base, [Path|Rest], Route, ReqData) ->
-    ReqPath = string:tokens(wrq:path(ReqData), "/"),
-    case expand_path(Base ++ Path, ReqData, []) of
-        ReqPath ->
-            Route;
-        _ ->
-            get_route_path(Base, Rest, Route, ReqData)
-    end.
-
-expand_path([], _ReqData, Acc) ->
-    lists:reverse(Acc);
-expand_path([Part|Rest], ReqData, Acc) when is_list(Part) ->
-    expand_path(Rest, ReqData, [Part | Acc]);
-expand_path(['*'|Rest], ReqData, Acc) ->
-    Tokens = string:tokens(wrq:path(ReqData), "/"),
-    case length(Acc) > length(Tokens) of
-        true ->
-            undefined;
-        false ->
-            expand_path(Rest, ReqData, lists:reverse(lists:nthtail(length(Acc), Tokens)) ++ Acc)
-    end;
-expand_path([Part|Rest], ReqData, Acc) when is_atom(Part) ->
-    expand_path(Rest, ReqData, [wrq:path_info(Part, ReqData) | Acc]).
-
-build_wm_routes({_R, []}, Acc) ->
-    lists:reverse(lists:flatten(Acc));
-build_wm_routes({R, [#wtb_route{routes = [], prefix = [], path = Paths} | Rest]}, Acc) ->
-    build_wm_routes({R, Rest}, [build_wm_route(R, [], Paths, []) | Acc]);
-build_wm_routes({R, [#wtb_route{routes = [], prefix = Bases, path = []} | Rest]}, Acc) ->
-    build_wm_routes({R, Rest}, [build_wm_route(R, [], Bases, []) | Acc]);
-build_wm_routes({R, [#wtb_route{routes = [], prefix = Bases, path = Paths} | Rest]}, Acc) ->
-    build_wm_routes({R, Rest}, [build_wm_routes(R, Bases, Paths, []) | Acc]);
-build_wm_routes({R, [#wtb_route{routes = [SubRoute|SubRest], prefix = Bases, path = Paths}=Route | Rest]}, Acc) ->
-    SubRoute1 = SubRoute#wtb_route{prefix = Bases ++ Paths ++ SubRoute#wtb_route.prefix},
-    Route1 = Route#wtb_route{routes = SubRest},
-    build_wm_routes({R, [Route1, SubRoute1 | Rest]}, Acc).
-
-build_wm_routes(_R, [], _, Acc) ->
-    Acc;
-build_wm_routes(R, [Base|Rest], Paths, Acc) ->
-    build_wm_routes(R, Rest, Paths, [build_wm_route(R, Base, Paths, [])|Acc]).
-
-build_wm_route(_, _, [], Acc) ->
-    Acc;
-build_wm_route(R, Base, [Path|Rest], Acc) ->
-    build_wm_route(R, Base, Rest, [{Base ++ Path, ?MODULE, [R]}|Acc]).
 
 try_callback(CbName, Default, ReqData, Ctx=#ctx{wtb_resource = Resource,
                                                 wtb_route = Route,

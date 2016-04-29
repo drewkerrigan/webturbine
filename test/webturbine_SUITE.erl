@@ -46,7 +46,7 @@ route_test() ->
     [].
 
 route_test(_Config) -> 
-    DL = webturbine_router:dispatch([webturbine_test_resource]),
+    DL = webturbine:dispatch([webturbine_test_resource]),
     Context = start_server(webmachine_router, "127.0.0.1", DL),
 
     {ok, "200", _, "something"} = 
