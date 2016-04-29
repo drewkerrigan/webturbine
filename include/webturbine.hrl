@@ -13,6 +13,7 @@
 
 -type wtb_route_name() :: atom().
 -type wtb_route_path() :: [string() | atom()].
+-type wtb_route_options() :: [{atom(), term()}].
 -type wtb_type() :: json | binary | text | html | requested | any | none | string().
 -type wtb_method() :: 'GET' | 'PUT' | 'POST' | 'DELETE'.
 
@@ -22,7 +23,10 @@
                     provides = [any] :: [wtb_type()],
                     accepts = [any] :: [wtb_type()],
                     routes = [] :: [wtb_route()],
-                    prefix = [] :: [wtb_route_path()]}).
+                    prefix = [] :: [wtb_route_path()],
+                    resource :: module(),
+                    handlers = [] :: [{atom(), function()}],
+                    options = [] :: wtb_route_options()}).
 -type wtb_route() :: #wtb_route{}.
 
 -type wtb_json_resp() :: [{atom() | binary(), term()}].

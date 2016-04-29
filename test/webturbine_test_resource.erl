@@ -25,9 +25,11 @@ routes() ->
      #wtb_route{name = cluster,
                 path = [["clusters", cluster]],
                 routes = [
-                          wtb:route(node, [["nodes", node]])
+                          wtb_route:new(node, [["nodes", node]])
                          ]},
-     wtb:route(short)
+     wtb_route:new(short),
+     wtb_route:static([["static",'*']], "./"),
+     wtb_route:handler(handler, [{handler_get, fun(_,S)-> {"handler_value",S} end}], [["handler"]], ['GET'])
     ].
 
 echo_get(Req) ->

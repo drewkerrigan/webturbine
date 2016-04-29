@@ -1,9 +1,13 @@
 -module(wtb_route).
 
+-export([new/1, new/2, new/3]).
+-export([handler/4]).
+-export([static/2, static/3]).
+
 -export([get_field/2,
          set_field/3]).
 
--export([from_path/3,
+-export([find_from_path/3,
          matches_path/3,
          generate_flat_paths/1,
          generate_paths/1]).
@@ -14,14 +18,48 @@
 %% API
 %%====================================================================
 
--spec from_path([wtb_route()], [string()], [{atom(), string()}]) -> 
+-spec new(wtb_route_name()) -> wtb_route().
+new(Name) ->
+    #wtb_route{name=Name, path=[[atom_to_list(Name)]]}.
+
+-spec new(wtb_route_name(), [wtb_route_path()]) -> wtb_route().
+new(Name, Paths) ->
+    #wtb_route{name=Name, path=Paths}.
+
+-spec new(wtb_route_name(), [wtb_route_path()], [wtb_method()]) ->
+                   wtb_route().
+new(Name, Paths, Methods) ->
+    #wtb_route{name=Name, path=Paths, methods=Methods}.
+
+-spec handler(wtb_route_name(), [{atom(), function()}], 
+              [wtb_route_path()], [wtb_method()]) -> wtb_route().
+handler(Name, Funs, Paths, Methods) ->
+    #wtb_route{name=Name, path=Paths, methods=Methods, handlers=Funs}.
+
+-spec static([wtb_route_path()], string()) -> 
+                    wtb_route().
+static(Paths, StaticRoot) ->
+    static(Paths, StaticRoot, "index.html").
+
+-spec static([wtb_route_path()], string(), 
+             string()) -> wtb_route().
+static(Paths, StaticRoot, DefaultFile) ->
+    Options = [{static_root, StaticRoot},
+               {default_file, DefaultFile}],
+    #wtb_route{name=static, 
+               path=Paths, 
+               provides=[requested],
+               resource=webturbine_static_res,
+               options=Options}.
+
+-spec find_from_path([wtb_route()], [string()], [{atom(), string()}]) -> 
                        wtb_route() | {error, not_found}.
-from_path([Route|Rest], PathTokens, PathInfo) ->
+find_from_path([Route|Rest], PathTokens, PathInfo) ->
     case matches_path(Route, PathTokens, PathInfo) of
         {true, R} -> R;
-        _ -> from_path(Rest, PathTokens, PathInfo)
+        _ -> find_from_path(Rest, PathTokens, PathInfo)
     end;
-from_path([], _, _) ->
+find_from_path([], _, _) ->
     {error, not_found}.
 
 -spec get_field(atom(), wtb_route()) -> term().
@@ -137,8 +175,8 @@ field_num(Field) ->
 -include_lib("eunit/include/eunit.hrl").
 
 generate_paths_test() ->
-    R1 = wtb:route(one),
-    R2 = wtb:route(two, [["one", "two"]]),
+    R1 = new(one),
+    R2 = new(two, [["one", "two"]]),
     R3 = #wtb_route{
                       prefix=[["one"], ["two"]], 
                       path=[["three"],["four"]]},
@@ -150,8 +188,8 @@ generate_paths_test() ->
                         ["two", "four"]]}],
                  generate_paths(R3)),
     
-    Inner1 = wtb:route(inner1),
-    Inner2 = wtb:route(inner2),
+    Inner1 = new(inner1),
+    Inner2 = new(inner2),
     Outer = #wtb_route{name=outer,
                        routes=[Inner1,Inner2],
                        prefix=[["outer1"],["outer2"]],
@@ -180,18 +218,18 @@ path_match_test() ->
     ?assertEqual(false, parts_match_path(["not", '*'],["hello", "one", "two", "three"],[])).
 
 from_path_test() ->
-    R1 = wtb:route(hello),
-    R2 = wtb:route(node, [["nodes", node]]),
+    R1 = new(hello),
+    R2 = new(node, [["nodes", node]]),
     R3 = #wtb_route{name = cluster,
                     path = [["clusters", cluster]],
                     routes = [R2]},
     Routes = [R1, R2, R3],
     ?assertEqual(
-       R1, from_path(Routes,["hello"],[])),
+       R1, find_from_path(Routes,["hello"],[])),
     
     ?assertEqual(
        wtb_route:set_field(prefix, [["clusters", cluster]], R2),
-       from_path(
+       find_from_path(
          Routes,
          string:tokens("clusters/cluster/nodes/hello", "/"),
          [{cluster, "cluster"},{node,"hello"}])).

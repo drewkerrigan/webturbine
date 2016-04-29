@@ -13,7 +13,8 @@
          accept_content/2,
          post_is_create/2,
          create_path/2,
-         last_modified/2]).
+         last_modified/2,
+         generate_etag/2]).
 
 -include_lib("webmachine/include/webmachine.hrl").
 -include("webturbine.hrl").
@@ -33,20 +34,34 @@ init([Resource]) ->
     {ok, Ctx}.
 
 service_available(ReqData, Ctx=#ctx{wtb_resource = Resource}) ->
-    case find_callback(Resource, routes, 0) of
-        {error, callback_not_implemented} ->
+    Routes = 
+        case find_callback(Resource, routes, 0) of
+            {error, callback_not_implemented} ->
+                [];
+            _ ->
+                Resource:routes()
+        end,
+    Tokens = string:tokens(wrq:path(ReqData), "/"),
+    Info = wrq:path_info(ReqData),
+    case wtb_route:find_from_path(Routes, Tokens, Info) of
+        {error, not_found} ->
             {false, ReqData, Ctx};
-        _ ->
-            case wtb_route:from_path(Resource:routes(), string:tokens(wrq:path(ReqData), "/"), wrq:path_info(ReqData)) of
-                #wtb_route{}=R ->
-                    Ctx1 = Ctx#ctx{wtb_route = R},
-                    {ReqState, Ctx2} = try_callback(init, undefined, ReqData, Ctx1),
-                    Ctx3 = Ctx2#ctx{request_state = ReqState},
-                    {Response, Ctx4} = try_callback(available, true, ReqData, Ctx3),
-                    bool_resp(Response, ReqData, Ctx4);
-                {error, not_found} ->
-                    {false, ReqData, Ctx}
-            end
+        #wtb_route{}=Route ->
+            Resource1 = 
+                case Route#wtb_route.resource of
+                    undefined ->
+                        Resource;
+                    Resource2 ->
+                        Resource2
+                end,
+            ReqState = Route#wtb_route.options,
+            Ctx1 = Ctx#ctx{wtb_route = Route,
+                           wtb_resource = Resource1, 
+                           request_state = ReqState},
+            {ReqState1, Ctx2} = try_callback(init, ReqState, ReqData, Ctx1),
+            Ctx3 = Ctx2#ctx{request_state = ReqState1},
+            {Response, Ctx4} = try_callback(available, true, ReqData, Ctx3),
+            bool_resp(Response, ReqData, Ctx4)
     end.
 
 allowed_methods(ReqData, Ctx = #ctx{wtb_route = Route}) ->
@@ -60,7 +75,7 @@ content_types_accepted(ReqData, Ctx = #ctx{wtb_route = Route}) ->
     Accepts = to_content_types(Route#wtb_route.accepts, accept_content, ReqData, []),
     {Accepts, ReqData, Ctx}.
 
-resource_exists(ReqData, Ctx) ->
+resource_exists(ReqData, Ctx) ->    
     {Response, Ctx1} = try_callback(exists, true, ReqData, Ctx),
     bool_resp(Response, ReqData, Ctx1).
 
@@ -80,7 +95,7 @@ process_post(ReqData, Ctx) ->
     {Response, Ctx1} = try_callback(post, false, ReqData, Ctx),
     bool_resp(Response, ReqData, Ctx1).
 
-post_is_create(ReqData, Ctx = #ctx{wtb_resource = Resource, wtb_route = Route}) ->    
+post_is_create(ReqData, Ctx = #ctx{wtb_resource = Resource, wtb_route = Route}) ->
     RouteName = Route#wtb_route.name,
     Callback = list_to_atom(atom_to_list(RouteName) ++ "_post_path"),
     case find_callback(Resource, Callback, 2) of
@@ -96,6 +111,10 @@ create_path(ReqData, Ctx) ->
 
 last_modified(ReqData, Ctx) ->
     {Response, Ctx1} = try_callback(last_modified, undefined, ReqData, Ctx),
+    {Response, ReqData, Ctx1}.
+
+generate_etag(ReqData, Ctx) ->
+    {Response, Ctx1} = try_callback(etag, undefined, ReqData, Ctx),
     {Response, ReqData, Ctx1}.
 
 %%====================================================================
@@ -117,7 +136,19 @@ try_callback(CbName, Default, ReqData, Ctx=#ctx{wtb_resource = Resource,
             Ctx1 = Ctx#ctx{request_state = State1},
             {Result, Ctx1};
         {error, callback_not_implemented} ->
-            {Default, Ctx}
+            case Route#wtb_route.handlers of
+                undefined ->
+                    {Default, Ctx};
+                Funs ->
+                    case proplists:get_value(Callback, Funs) of
+                        undefined ->
+                            {Default, Ctx};
+                        Fun ->
+                            {Result, State1} = Fun(ReqData, State),
+                            Ctx1 = Ctx#ctx{request_state = State1},
+                            {Result, Ctx1}
+                    end
+            end
     end.
 
 find_callback(_Resource, _Callback, -1) ->
