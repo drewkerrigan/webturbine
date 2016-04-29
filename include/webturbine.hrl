@@ -1,5 +1,3 @@
--include_lib("webmachine/include/webmachine.hrl").
-
 -define(ACCEPT(T), {T, accept_content}).
 -define(PROVIDE(T), {T, provide_content}).
 -define(JSON_TYPE, "application/json").
@@ -27,7 +25,6 @@
                     prefix = [] :: [wtb_route_path()]}).
 -type wtb_route() :: #wtb_route{}.
 
--type wtb_req() :: #wm_reqdata{}.
 -type wtb_json_resp() :: [{atom() | binary(), term()}].
 -type wtb_text_resp() :: string().
 -type wtb_binary_resp() :: binary().

@@ -10,7 +10,6 @@
           webmachine_sup,
           mochi_serv,
           port,
-          resource_name,
           base_url = "http://localhost"
          }).
 
@@ -47,7 +46,7 @@ route_test() ->
 
 route_test(_Config) -> 
     DL = webturbine:dispatch([webturbine_test_resource]),
-    Context = start_server(webmachine_router, "127.0.0.1", DL),
+    Context = start_server("127.0.0.1", DL),
 
     {ok, "200", _, "something"} = 
         ibrowse:send_req(url(Context, "base/echo/something"), [], get, [], []),
@@ -70,7 +69,7 @@ route_test(_Config) ->
 %% Internal functions
 %%====================================================================
 
-start_server(Name, IP, DispatchList) ->
+start_server(IP, DispatchList) ->
     cleanup_previous_runs(),
     error_logger:tty(false),
     application:start(inets),
@@ -79,15 +78,12 @@ start_server(Name, IP, DispatchList) ->
                  {port, ?EPHEMERAL_PORT},
                  {nodelay, true},
                  {dispatch, DispatchList}],
-    %% WebConfig = [{name, Name}, {ip, IP}, {port, ?EPHEMERAL_PORT},
-    %%              {dispatch, DispatchList}],
     {ok, MochiServ} = webmachine_mochiweb:start(WebConfig),
     link(MochiServ),
     Port = mochiweb_socket_server:get(MochiServ, port),
     #integration_state{webmachine_sup=WebmachineSup,
                        mochi_serv=MochiServ,
-                       port=Port,
-                       resource_name=Name}.
+                       port=Port}.
 
 stop_server(Context) ->
     stop_supervisor(Context#integration_state.webmachine_sup),

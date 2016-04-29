@@ -1,4 +1,4 @@
--module(webturbine_router).
+-module(webturbine_wm_resource).
 
 %% Webmachine exports
 -export([init/1,
@@ -15,6 +15,7 @@
          create_path/2,
          last_modified/2]).
 
+-include_lib("webmachine/include/webmachine.hrl").
 -include("webturbine.hrl").
 
 -record(ctx, {
@@ -32,20 +33,18 @@ init([Resource]) ->
     {ok, Ctx}.
 
 service_available(ReqData, Ctx=#ctx{wtb_resource = Resource}) ->
-    io:format("INFO: ~p", [wrq:path_info(ReqData)]),
     case find_callback(Resource, routes, 0) of
         {error, callback_not_implemented} ->
             {false, ReqData, Ctx};
         _ ->
-            %% case webturbine:route_from_path(Resource:routes(), ReqData) of
-            case webturbine:route_from_path(Resource:routes(), wrq:path(ReqData), wrq:path_info(ReqData)) of
+            case wtb_route:from_path(Resource:routes(), string:tokens(wrq:path(ReqData), "/"), wrq:path_info(ReqData)) of
                 #wtb_route{}=R ->
                     Ctx1 = Ctx#ctx{wtb_route = R},
                     {ReqState, Ctx2} = try_callback(init, undefined, ReqData, Ctx1),
                     Ctx3 = Ctx2#ctx{request_state = ReqState},
                     {Response, Ctx4} = try_callback(available, true, ReqData, Ctx3),
                     bool_resp(Response, ReqData, Ctx4);
-                _ ->
+                {error, not_found} ->
                     {false, ReqData, Ctx}
             end
     end.

@@ -21,11 +21,11 @@
 %%     wtb_resp().
 
 %% For routes that do require request data:
-%% -callback RouteName_CallbackName(wtb_req()) -> 
+%% -callback RouteName_CallbackName(#wm_reqdata{}) -> 
 %%     wtb_resp().
 
 %% For routes that require a resource defined state:
-%% -callback RouteName_CallbackName(wtb_req(), term()) -> 
+%% -callback RouteName_CallbackName(#wm_reqdata{}, term()) -> 
 %%     {wtb_resp(), term()}.
 
 %% Available Callbacks Per Route:
