@@ -1,19 +1,8 @@
 -define(ACCEPT(T), {T, accept_content}).
 -define(PROVIDE(T), {T, provide_content}).
--define(JSON_TYPE, "application/json").
--define(TEXT_TYPE, "plain/text").
--define(HTML_TYPE, "text/html").
--define(OCTET_TYPE, "application/octet-stream").
--define(FORM_TYPE, "application/x-www-form-urlencoded").
--define(PROVIDE_TEXT, [{?TEXT_TYPE, provide_text_content}]).
--define(ACCEPT_TEXT, [?ACCEPT(?FORM_TYPE),
-                      ?ACCEPT(?OCTET_TYPE),
-                      ?ACCEPT(?TEXT_TYPE),
-                      ?ACCEPT(?JSON_TYPE)]).
 
 -type wtb_route_name() :: atom().
 -type wtb_route_path() :: [string() | atom()].
--type wtb_route_options() :: [{atom(), term()}].
 -type wtb_type() :: json | binary | text | html | requested | any | none | string().
 -type wtb_method() :: 'GET' | 'PUT' | 'POST' | 'DELETE'.
 
@@ -23,10 +12,11 @@
                     provides = [any] :: [wtb_type()],
                     accepts = [any] :: [wtb_type()],
                     routes = [] :: [wtb_route()],
-                    prefix = [] :: [wtb_route_path()],
-                    resource :: module(),
+                    prefix = [] :: [wtb_route_path()],                    
                     handlers = [] :: [{atom(), function()}],
-                    options = [] :: wtb_route_options()}).
+                    resource :: module(),
+                    state :: any(),
+                    request :: any()}).
 -type wtb_route() :: #wtb_route{}.
 
 -type wtb_json_resp() :: [{atom() | binary(), term()}].

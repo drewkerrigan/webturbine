@@ -1,10 +1,10 @@
--module(webturbine_SUITE).
+-module(webturbine_cb_SUITE).
 
 -compile(export_all).
 
 -include_lib("common_test/include/ct.hrl").
 
--define(EPHEMERAL_PORT, 0).
+-define(EPHEMERAL_PORT, 10001).
 
 -record(integration_state, {
           webmachine_sup,
@@ -45,7 +45,7 @@ route_test() ->
     [].
 
 route_test(_Config) -> 
-    DL = webturbine:dispatch_wm([webturbine_test_resource]),
+    DL = webturbine:dispatch_cb([webturbine_test_cb_resource]),
     Context = start_server("127.0.0.1", DL),
 
     {ok, "200", _, "something"} = 
@@ -60,12 +60,12 @@ route_test(_Config) ->
         ibrowse:send_req(url(Context, "clusters/here/nodes/mynode"), [], get, [], []),
     {ok, "200", _, "{\"its\":\"json\"}"} = 
         ibrowse:send_req(url(Context, "short"), [], get, [], []),
-    {ok, "200", _, _} = 
-        ibrowse:send_req(url(Context, "static/ct_default.css"), [], get, [], []),
+    %% {ok, "200", _, _} = 
+    %%     ibrowse:send_req(url(Context, "static/ct_default.css"), [], get, [], []),
     {ok, "200", _, "handler_value"} = 
         ibrowse:send_req(url(Context, "handler"), [], get, [], []),
 
-    stop_server(Context),
+    %% stop_server(Context),
     ok.
     
 
@@ -73,21 +73,19 @@ route_test(_Config) ->
 %% Internal functions
 %%====================================================================
 
-start_server(IP, DispatchList) ->
-    cleanup_previous_runs(),
-    error_logger:tty(false),
-    application:start(inets),
-    {ok, WebmachineSup} = webmachine_sup:start_link(),
-    WebConfig = [{ip, IP},
-                 {port, ?EPHEMERAL_PORT},
-                 {nodelay, true},
-                 {dispatch, DispatchList}],
-    {ok, MochiServ} = webmachine_mochiweb:start(WebConfig),
-    link(MochiServ),
-    Port = mochiweb_socket_server:get(MochiServ, port),
-    #integration_state{webmachine_sup=WebmachineSup,
-                       mochi_serv=MochiServ,
-                       port=Port}.
+start_server(_IP, DispatchList) ->
+    application:ensure_all_started(cowboy),
+    Dispatch = 
+        cowboy_router:compile(
+          [
+           {'_', DispatchList}
+          ]),
+    {ok, Pid} = cowboy:start_clear(
+                http, 100, [{port, 10001}], #{env => #{dispatch => Dispatch}}),
+    
+    #integration_state{webmachine_sup=Pid,
+                       port=10001}.
+    
 
 stop_server(Context) ->
     stop_supervisor(Context#integration_state.webmachine_sup),

@@ -14,7 +14,6 @@
 
 static_exists(ReqData, Options) ->
     Filename = static_filename(ReqData, Options),
-    io:format("list: ~p", [file:list_dir(proplists:get_value(static_root, Options))]),
     {filelib:is_regular(Filename), Options}.
 
 static_last_modified(ReqData, Options) ->
@@ -38,6 +37,7 @@ static_etag(_, Options) ->
 static_filename(ReqData, Options) ->
     StaticRoot = proplists:get_value(static_root, Options, "priv/www"),
     DefaultFile = proplists:get_value(static_root, Options, "index.html"),
+
     case wrq:disp_path(ReqData) of
         "" ->
             filename:join([StaticRoot, DefaultFile]);
