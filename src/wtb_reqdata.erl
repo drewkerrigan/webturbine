@@ -2,10 +2,10 @@
 
 -export([append_to_response_body/2,
          path/1,
+         disp_path/1,
+         path_info/2, path_info/3,
          method/1,
          halt/3, halt/4,
-         to_bool_response/1,
-         to_content_response/1,
          to_content_types/3,
          to_methods/2]).
 
@@ -21,6 +21,22 @@ path(ReqData=#wm_reqdata{}) ->
 path(ReqData) -> 
     cowboy_req:path(ReqData).
 
+disp_path(ReqData=#wm_reqdata{}) -> 
+    wrq:disp_path(ReqData);
+disp_path(ReqData) -> 
+    path_info('*', ReqData).
+
+path_info(Name, ReqData) ->
+    path_info(Name, ReqData, undefined).
+
+path_info(Name, ReqData=#wm_reqdata{}, Default) ->
+    case wrq:path_info(Name, ReqData) of
+        undefined -> Default;
+        V -> list_to_binary(V)
+    end;
+path_info(Name, ReqData, Default) ->
+    cowboy_req:binding(Name, ReqData, Default).
+
 method(ReqData=#wm_reqdata{}) -> 
     wrq:method(ReqData);
 method(ReqData) -> 
@@ -34,42 +50,6 @@ halt(Code, ReqData, Ctx) ->
 halt(Code, Content, ReqData=#wm_reqdata{}, Ctx) ->
     ReqData1 = append_to_response_body(Content, ReqData),
     halt(Code, ReqData1, Ctx).
-
-to_bool_response({Response, ReqData, Ctx}) when is_boolean(Response) ->
-    {Response, ReqData, Ctx};
-to_bool_response({{error, not_found}, ReqData, Ctx}) ->
-    {false, ReqData, Ctx};
-to_bool_response({{_,_}=Response, ReqData, Ctx}) ->
-    to_content_response({Response, ReqData, Ctx});
-to_bool_response({Content, ReqData, Ctx}) ->
-    Content1 = to_content(Content),
-    ReqData1 = append_to_response_body(Content1, ReqData),
-    {true, ReqData1, Ctx}.
-
-to_content_response({Content, ReqData, Ctx}) when is_atom(Content) ->
-    {atom_to_list(Content), ReqData, Ctx};
-to_content_response({{halt, Code}, ReqData, Ctx}) ->
-    halt(Code, ReqData, Ctx);
-to_content_response({{{halt, Code}, Content}, ReqData, Ctx}) ->
-    Content1 = to_content(Content),
-    halt(Code, Content1, ReqData, Ctx);
-to_content_response({{error, not_found}, ReqData, Ctx}) ->
-    halt(404, ReqData, Ctx);
-to_content_response({{error, Reason}, ReqData, Ctx}) ->
-    Content = to_content([{error, list_to_binary(io_lib:format("~p", [Reason]))}]),
-    halt(500, Content, ReqData, Ctx);
-to_content_response({Content, ReqData, Ctx}) ->
-    Content1 = to_content(Content),
-    {Content1, ReqData, Ctx}.
-
-to_content(Content) when is_binary(Content) ->
-    Content;
-to_content([{_,_}|_]=Content) ->
-    mochijson2:encode(Content);
-to_content(Content) when is_list(Content) ->
-    Content;
-to_content(Content) ->
-    list_to_binary(io_lib:format("~p", [Content])).
 
 to_content_types(TypeShortcuts, Function, ReqData=#wm_reqdata{}) ->
     lists:append([ ct(CT, Function, ReqData, string) || CT <- TypeShortcuts ]);

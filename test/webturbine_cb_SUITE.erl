@@ -45,7 +45,7 @@ route_test() ->
     [].
 
 route_test(_Config) -> 
-    DL = webturbine:dispatch_cb([webturbine_test_cb_resource]),
+    DL = webturbine:dispatch_cb([webturbine_test_resource]),
     Context = start_server("127.0.0.1", DL),
 
     {ok, "200", _, "something"} = 
@@ -60,8 +60,8 @@ route_test(_Config) ->
         ibrowse:send_req(url(Context, "clusters/here/nodes/mynode"), [], get, [], []),
     {ok, "200", _, "{\"its\":\"json\"}"} = 
         ibrowse:send_req(url(Context, "short"), [], get, [], []),
-    %% {ok, "200", _, _} = 
-    %%     ibrowse:send_req(url(Context, "static/ct_default.css"), [], get, [], []),
+    {ok, "200", _, _} = 
+        ibrowse:send_req(url(Context, "static/ct_default.css"), [], get, [], []),
     {ok, "200", _, "handler_value"} = 
         ibrowse:send_req(url(Context, "handler"), [], get, [], []),
 

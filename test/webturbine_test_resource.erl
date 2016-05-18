@@ -33,13 +33,13 @@ routes() ->
     ].
 
 echo_get(Req) ->
-    wrq:path_info(this, Req).
+    wtb_reqdata:path_info(this, Req).
 
 cluster_init() ->
     #state{}.
 cluster_exists(Req, State) ->
-    case wrq:path_info(cluster, Req) of
-        "here" ->
+    case wtb_reqdata:path_info(cluster, Req) of
+        <<"here">> ->
             {true, State#state{response = "here"}};
         _ ->
             {false, State}
@@ -51,7 +51,7 @@ node_exists(Req) ->
     {ClusterExists, _} = cluster_exists(Req, #state{}),
     ClusterExists.
 node_get(Req) ->
-    "Cluster: " ++ wrq:path_info(cluster, Req) ++ ", Node: " ++ wrq:path_info(node, Req).
+    "Cluster: " ++ binary_to_list(wtb_reqdata:path_info(cluster, Req)) ++ ", Node: " ++ binary_to_list(wtb_reqdata:path_info(node, Req)).
 
 short_get() ->
     [{its, <<"json">>}].

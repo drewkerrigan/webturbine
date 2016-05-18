@@ -9,9 +9,16 @@
 
 -export([init/1,
          call_exists/2,
+         call_noop/3,
          call_bool/3, 
          call_content/3,
-         call/3]).
+         call_websocket/4,
+         call/3, call/4,
+         generate_callback/3,
+         to_noop_response/1,
+         to_bool_response/1,
+         to_content_response/1,
+         to_websocket_response/1]).
 
 -include("webturbine.hrl").
 
@@ -90,7 +97,8 @@ generate_paths(Resource, Route=#wtb_route{routes=SubRoutes}) ->
 %%====================================================================
 
 init(Route=#wtb_route{state=State}) ->
-    {State1, _, Route1} = call(init, Route, State),
+    Callback = generate_callback(init, Route, [State]),
+    {State1, _, Route1} = call(Callback, Route, State),
     Route1#wtb_route{state=State1}.
 
 call_exists(Name, #wtb_route{resource=Resource}) ->
@@ -99,47 +107,111 @@ call_exists(Name, #wtb_route{resource=Resource}) ->
         _ -> true
     end.
 
-call_bool(Name, Route, Default) ->
-    case call(Name, Route, Default) of
-        {Default, _, _}=Response -> Response;
-        Response -> wtb_reqdata:to_bool_response(Response)
-    end.
+call_noop(Name, Route=#wtb_route{request=ReqData, 
+                                 state=State}, Default) ->
+    Callback = generate_callback(Name, Route, [ReqData, State]),
+    call(Callback, to_noop_response, Route, Default).
 
-call_content(Name, Route, Default) ->
-    case call(Name, Route, Default) of
-        {Default, _, _}=Response -> Response;
-        Response -> wtb_reqdata:to_content_response(Response)
-    end.
+call_bool(Name, Route=#wtb_route{request=ReqData, 
+                                 state=State}, Default) ->
+    Callback = generate_callback(Name, Route, [ReqData, State]),
+    call(Callback, to_bool_response, Route, Default).
 
-call(CallbackName, Route=#wtb_route{request = ReqData,
-                                      resource = Resource,
-                                      state = State}, Default) ->
-    RouteName = Route#wtb_route.name,
-    Callback = list_to_atom(atom_to_list(RouteName) ++ "_" ++ atom_to_list(CallbackName)),
-    case find_callback(Resource, Callback, 2) of
-        {R,C,0} -> 
-            {R:C(), ReqData, Route};
-        {R,C,1} -> 
-            {R:C(ReqData), ReqData, Route};
-        {R,C,2} -> 
-            {Result, State1} = R:C(ReqData, State),
-            Route1 = Route#wtb_route{state=State1},
-            {Result, ReqData, Route1};
+call_content(Name, Route=#wtb_route{request=ReqData, 
+                                    state=State}, Default) ->
+    Callback = generate_callback(Name, Route, [ReqData, State]),
+    call(Callback, to_content_response, Route, Default).
+
+call_websocket(Name, Message, Route=#wtb_route{request=ReqData, 
+                                               state=State}, Default) ->
+    Callback = generate_callback(Name, Route, [Message, ReqData, State]),
+    call(Callback, to_websocket_response, Route, Default).
+
+generate_callback(Name, #wtb_route{resource=Resource, 
+                                   name=RouteName,
+                                   handlers=undefined}, Args) ->
+    Callback = list_to_atom(atom_to_list(RouteName) ++ "_" ++ atom_to_list(Name)),
+    case find_callback(Resource, Callback, length(Args)) of
+        {R,C,N} -> 
+            {R, C, lists:sublist(Args, N)};
         {error, callback_not_implemented} ->
-            case Route#wtb_route.handlers of
-                undefined ->
-                    {Default, ReqData, Route};
-                Funs ->
-                    case proplists:get_value(Callback, Funs) of
-                        undefined ->
-                            {Default, ReqData, Route};
-                        Fun ->
-                            {Result, State1} = Fun(ReqData, State),
-                            Route1 = Route#wtb_route{state = State1},
-                            {Result, ReqData, Route1}
-                    end
-            end
+            {error, callback_not_implemented}
+    end;
+generate_callback(Name, #wtb_route{name=RouteName,
+                                   handlers=Handlers}, Args) ->
+    Callback = list_to_atom(atom_to_list(RouteName) ++ "_" ++ atom_to_list(Name)),
+    case proplists:get_value(Callback, Handlers) of
+        undefined ->
+            {error, callback_not_implemented};
+        Fun ->
+            {Fun, Args}
     end.
+
+call(MFA, Route, Default) ->
+    call(MFA, to_noop_response, Route, Default).
+
+call({error, callback_not_implemented}, _, Route=#wtb_route{request=ReqData}, Default) ->
+    {Default, ReqData, Route};
+call(MFA, Modifier, Route=#wtb_route{request=ReqData}, _) ->
+    ResultAndLength = 
+        case MFA of
+            {M, F, A} ->
+                {erlang:apply(M, F, A), length(A)};
+            {F, A} ->
+                {erlang:apply(F, A), length(A)}
+        end,
+    Result = 
+        case ResultAndLength of
+            {{R, State1}, N} when N > 1 -> 
+                Route1 = Route#wtb_route{state=State1},
+                {R, ReqData, Route1};
+            {R, _} ->
+                {R, ReqData, Route}
+        end,
+    erlang:apply(?MODULE, Modifier, [Result]).
+
+to_noop_response(R) -> R.
+
+to_bool_response({Response, ReqData, Ctx}) when is_boolean(Response) ->
+    {Response, ReqData, Ctx};
+to_bool_response({{error, not_found}, ReqData, Ctx}) ->
+    {false, ReqData, Ctx};
+to_bool_response({{_,_}=Response, ReqData, Ctx}) ->
+    to_content_response({Response, ReqData, Ctx});
+to_bool_response({Content, ReqData, Ctx}) ->
+    Content1 = to_content(Content),
+    ReqData1 = wtb_reqdata:append_to_response_body(Content1, ReqData),
+    {true, ReqData1, Ctx}.
+
+to_content_response({Content, ReqData, Ctx}) when is_atom(Content) ->
+    {atom_to_list(Content), ReqData, Ctx};
+to_content_response({{halt, Code}, ReqData, Ctx}) ->
+    wtb_reqdata:halt(Code, ReqData, Ctx);
+to_content_response({{{halt, Code}, Content}, ReqData, Ctx}) ->
+    Content1 = to_content(Content),
+    wtb_reqdata:halt(Code, Content1, ReqData, Ctx);
+to_content_response({{error, not_found}, ReqData, Ctx}) ->
+    wtb_reqdata:halt(404, ReqData, Ctx);
+to_content_response({{error, Reason}, ReqData, Ctx}) ->
+    Content = to_content([{error, list_to_binary(io_lib:format("~p", [Reason]))}]),
+    wtb_reqdata:halt(500, Content, ReqData, Ctx);
+to_content_response({Content, ReqData, Ctx}) ->
+    Content1 = to_content(Content),
+    {Content1, ReqData, Ctx}.
+
+to_websocket_response({{text,_}=Response, ReqData, Ctx}) ->
+    {reply, Response, ReqData, Ctx};
+to_websocket_response({ok, ReqData, Ctx}) ->
+    {ok, ReqData, Ctx}.
+
+to_content(Content) when is_binary(Content) ->
+    Content;
+to_content([{_,_}|_]=Content) ->
+    mochijson2:encode(Content);
+to_content(Content) when is_list(Content) ->
+    Content;
+to_content(Content) ->
+    list_to_binary(io_lib:format("~p", [Content])).
 
 %%====================================================================
 %% Internal functions
@@ -150,7 +222,7 @@ maybe_set_resource(Resource, Route=#wtb_route{resource=undefined}) ->
 maybe_set_resource(_, Route) -> 
     Route.
 
--spec generate_sub_paths(wtb_route()) -> [wtb_route_path()].
+-spec generate_sub_paths(wtb_route()) -> [{wtb_route(), wtb_route_path()}].
 generate_sub_paths(Route=#wtb_route{prefix=[], path=Paths}) ->
     [ {Route, Path} || Path <- Paths ];
 generate_sub_paths(Route=#wtb_route{prefix=Prefixes, path=[]}) ->

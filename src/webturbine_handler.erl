@@ -20,7 +20,9 @@
 
 %% Cowboy exports
 -export([init/2]).
--export([allow_missing_post/2]).
+-export([allow_missing_post/2,
+         websocket_handle/3,
+         websocket_info/3]).
 
 -include("webturbine.hrl").
 -include_lib("webmachine/include/webmachine.hrl").
@@ -69,27 +71,37 @@ accept_content(ReqData, Route) ->
 
 last_modified(ReqData, Route) ->
     Route1 = wtb_route:set_field(request, ReqData, Route),
-    wtb_route:call(last_modified, Route1, undefined).
+    wtb_route:call_noop(last_modified, Route1, undefined).
 
 generate_etag(ReqData, Route) ->
     Route1 = wtb_route:set_field(request, ReqData, Route),
-    wtb_route:call_content(etag, Route1, undefined).
+    wtb_route:call_noop(etag, Route1, undefined).
 
 %%====================================================================
 %% Cowboy Callbacks
 %%====================================================================
 
-init(ReqData, [Route]) ->
-    {cowboy_rest, ReqData, Route}.
+init(ReqData, [Route=#wtb_route{handler_type=rest}]) ->
+    {cowboy_rest, ReqData, Route};
+init(ReqData, [Route=#wtb_route{handler_type=websocket}]) ->
+    {cowboy_websocket, ReqData, Route}.
 
 allow_missing_post(ReqData, Route) -> 
     Route1 = wtb_route:set_field(request, ReqData, Route),
-    case wtb_route:call(post_path, Route1, undefined) of
+    case wtb_route:call_noop(post_path, Route1, undefined) of
         {undefined, ReqData1, Route1} ->
             {false, ReqData1, Route1};
         {_, ReqData1, Route1} ->
             {true, ReqData1, Route1}
     end.
+
+websocket_handle(Message, ReqData, Route) ->
+    Route1 = wtb_route:set_field(request, ReqData, Route),
+    wtb_route:call_websocket(handle, Message, Route1, ok).
+
+websocket_info(Message, ReqData, Route) ->
+    Route1 = wtb_route:set_field(request, ReqData, Route),
+    wtb_route:call_websocket(info, Message, Route1, ok).
 
 %%====================================================================
 %% Webmachine Callbacks

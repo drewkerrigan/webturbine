@@ -5,6 +5,7 @@
 -type wtb_route_path() :: [string() | atom()].
 -type wtb_type() :: json | binary | text | html | requested | any | none | string().
 -type wtb_method() :: 'GET' | 'PUT' | 'POST' | 'DELETE'.
+-type wtb_handler_type() :: rest | websocket.
 
 -record(wtb_route, {name :: wtb_route_name(),
                     path :: [wtb_route_path()],
@@ -12,11 +13,12 @@
                     provides = [any] :: [wtb_type()],
                     accepts = [any] :: [wtb_type()],
                     routes = [] :: [wtb_route()],
-                    prefix = [] :: [wtb_route_path()],                    
-                    handlers = [] :: [{atom(), function()}],
+                    prefix = [] :: [{wtb_route(), wtb_route_path()}] | [wtb_route_path()],
+                    handlers :: [{atom(), function()}],
                     resource :: module(),
                     state :: any(),
-                    request :: any()}).
+                    request :: any(),
+                    handler_type = rest :: wtb_handler_type()}).
 -type wtb_route() :: #wtb_route{}.
 
 -type wtb_json_resp() :: [{atom() | binary(), term()}].

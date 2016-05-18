@@ -38,7 +38,7 @@ static_filename(ReqData, Options) ->
     StaticRoot = proplists:get_value(static_root, Options, "priv/www"),
     DefaultFile = proplists:get_value(static_root, Options, "index.html"),
 
-    case wrq:disp_path(ReqData) of
+    case wtb_reqdata:disp_path(ReqData) of
         "" ->
             filename:join([StaticRoot, DefaultFile]);
         F ->
