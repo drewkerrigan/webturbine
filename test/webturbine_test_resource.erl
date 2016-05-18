@@ -10,7 +10,10 @@
          cluster_get/2,
          node_exists/1,
          node_get/1,
-         short_get/0]).
+         short_get/0,
+         socket_init/0,
+         socket_handle/1,
+         socket_info/1]).
 
 -include("webturbine.hrl").
 
@@ -29,7 +32,10 @@ routes() ->
                          ]},
      wtb_route:new(short),
      wtb_route:static([["static",'*']], "./"),
-     wtb_route:handler(handler, [{handler_get, fun(_,S)-> {"handler_value",S} end}], [["handler"]], ['GET'])
+     wtb_route:handler(handler, [{handler_get, fun(_,S)-> {"handler_value",S} end}], [["handler"]], ['GET']),
+     #wtb_route{name = socket,
+                path = [["socket"]],
+                handler_type = websocket}
     ].
 
 echo_get(Req) ->
@@ -55,3 +61,18 @@ node_get(Req) ->
 
 short_get() ->
     [{its, <<"json">>}].
+
+socket_init() ->
+	%% erlang:start_timer(1000, self(), <<"Hello!">>).
+  ok.
+
+socket_handle({text, Msg}) ->
+  {text, << "Great, how about you! ", Msg/binary >>};
+socket_handle(_Data) ->
+	ok.
+
+socket_info({timeout, _Ref, Msg}) ->
+	%% erlang:start_timer(1000, self(), <<"How' you doin'?">>),
+	{text, Msg};
+socket_info(_Info) ->
+	ok.

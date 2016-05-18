@@ -48,6 +48,11 @@ route_test(_Config) ->
     DL = webturbine:dispatch_cb([webturbine_test_resource]),
     Context = start_server("127.0.0.1", DL),
 
+    spawn(webturbine_ws_client, start_link, [self()]),
+    
+    receive M1 -> <<"Great, how about you! message 1">> = M1 end,
+    receive M2 -> <<"Great, how about you! hello, this is message #2">> = M2 end,
+    
     {ok, "200", _, "something"} = 
         ibrowse:send_req(url(Context, "base/echo/something"), [], get, [], []),
     {ok, "404", _, _} = 
