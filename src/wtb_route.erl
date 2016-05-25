@@ -96,8 +96,8 @@ generate_paths(Resource, Route=#wtb_route{routes=SubRoutes}) ->
 %% Callbacks
 %%====================================================================
 
-init(Route=#wtb_route{state=State}) ->
-    Callback = generate_callback(init, Route, [State]),
+init(Route=#wtb_route{request=ReqData, state=State}) ->
+    Callback = generate_callback(init, Route, [ReqData, State]),
     {State1, _, Route1} = call(Callback, Route, State),
     Route1#wtb_route{state=State1}.
 
@@ -200,9 +200,9 @@ to_content_response({Content, ReqData, Ctx}) ->
     {Content1, ReqData, Ctx}.
 
 to_websocket_response({{text,_}=Response, ReqData, Ctx}) ->
-    {reply, Response, ReqData, Ctx};
+    {reply, Response, ReqData, Ctx, hibernate};
 to_websocket_response({ok, ReqData, Ctx}) ->
-    {ok, ReqData, Ctx}.
+    {ok, ReqData, Ctx, hibernate}.
 
 to_content(Content) when is_binary(Content) ->
     Content;

@@ -1,5 +1,8 @@
 -module(webturbine_handler).
 
+-behaviour(cowboy_http_handler).
+-behaviour(cowboy_websocket_handler).
+
 %% Shared exports
 -export([service_available/2,
          allowed_methods/2,
@@ -22,10 +25,11 @@
 -export([init/2]).
 -export([allow_missing_post/2,
          websocket_handle/3,
-         websocket_info/3]).
+         websocket_info/3,
+         websocket_terminate/3,
+         terminate/3]).
 
 -include("webturbine.hrl").
--include_lib("webmachine/include/webmachine.hrl").
 
 %%====================================================================
 %% Shared Callbacks
@@ -84,7 +88,9 @@ generate_etag(ReqData, Route) ->
 init(ReqData, [Route=#wtb_route{handler_type=rest}]) ->
     {cowboy_rest, ReqData, Route};
 init(ReqData, [Route=#wtb_route{handler_type=websocket}]) ->
-    {cowboy_websocket, ReqData, Route}.
+    Route1 = wtb_route:set_field(request, ReqData, Route),
+    Route2 = wtb_route:init(Route1),
+    {cowboy_websocket, ReqData, Route2}.
 
 allow_missing_post(ReqData, Route) -> 
     Route1 = wtb_route:set_field(request, ReqData, Route),
@@ -97,11 +103,21 @@ allow_missing_post(ReqData, Route) ->
 
 websocket_handle(Message, ReqData, Route) ->
     Route1 = wtb_route:set_field(request, ReqData, Route),
-    wtb_route:call_websocket(handle, Message, Route1, ok).
+    wtb_route:call_websocket(websocket_handle, Message, Route1, ok).
 
 websocket_info(Message, ReqData, Route) ->
     Route1 = wtb_route:set_field(request, ReqData, Route),
-    wtb_route:call_websocket(info, Message, Route1, ok).
+    wtb_route:call_websocket(websocket_info, Message, Route1, ok).
+
+websocket_terminate(Reason, ReqData, Route) ->
+    Route1 = wtb_route:set_field(request, ReqData, Route),
+    {Resp, _, _, _, _} = wtb_route:call_websocket(websocket_terminate, Reason, Route1, ok),
+    Resp.
+
+terminate(Reason, ReqData, Route) ->
+    Route1 = wtb_route:set_field(request, ReqData, Route),
+    {Resp, _, _, _, _} = wtb_route:call_websocket(terminate, Reason, Route1, ok),
+    Resp.
 
 %%====================================================================
 %% Webmachine Callbacks
