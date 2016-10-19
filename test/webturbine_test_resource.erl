@@ -21,7 +21,7 @@
 
 routes() ->
     [
-     #wtb_route{name = echo, 
+     #wtb_route{name = echo,
                 prefix = [["base"]],
                 path = [["echo", this]],
                 provides = [text]},
@@ -63,7 +63,6 @@ short_get() ->
     [{its, <<"json">>}].
 
 socket_init() ->
-	%% erlang:start_timer(1000, self(), <<"Hello!">>).
   ok.
 
 socket_handle({text, Msg}) ->
