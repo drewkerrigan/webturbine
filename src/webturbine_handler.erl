@@ -11,6 +11,8 @@
          content_types_provided/2,
          content_types_accepted/2,
          resource_exists/2,
+         is_conflict/2,
+         previously_existed/2,
          delete_resource/2,
          last_modified/2,
          generate_etag/2,
@@ -51,6 +53,14 @@ content_types_accepted(ReqData, Route=#wtb_route{accepts=Accepts}) ->
 resource_exists(ReqData, Route) ->
     Route1 = wtb_route:set_field(request, ReqData, Route),
     wtb_route:call_bool(exists, Route1, true).
+
+is_conflict(ReqData, Route) ->
+    Route1 = wtb_route:set_field(request, ReqData, Route),
+    wtb_route:call_bool(is_conflict, Route1, false).
+
+previously_existed(ReqData, Route) ->
+    Route1 = wtb_route:set_field(request, ReqData, Route),
+    wtb_route:call_bool(previously_existed, Route1, false).
 
 delete_resource(ReqData, Route) ->
     Route1 = wtb_route:set_field(request, ReqData, Route),
