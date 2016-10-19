@@ -47,7 +47,7 @@ to_methods(Methods, _) ->
 %%====================================================================
 
 -define(JSON_TYPE, <<"application/json">>).
--define(TEXT_TYPE, <<"plain/text">>).
+-define(TEXT_TYPE, <<"text/plain">>).
 -define(HTML_TYPE, <<"text/html">>).
 -define(OCTET_TYPE, <<"application/octet-stream">>).
 -define(FORM_TYPE, <<"application/x-www-form-urlencoded">>).
