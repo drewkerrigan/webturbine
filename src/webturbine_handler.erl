@@ -64,6 +64,8 @@ provide_content(ReqData, Route) ->
 accept_content(ReqData, Route) ->
     Route1 = wtb_route:set_field(request, ReqData, Route),
     case wtb_reqdata:method(ReqData) of
+        'PATCH' ->
+            wtb_route:call_bool(patch, Route1, false);
         'POST' ->
             wtb_route:call_bool(post, Route1, false);
         'PUT' ->
