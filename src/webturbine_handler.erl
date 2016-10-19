@@ -16,6 +16,7 @@
          delete_resource/2,
          last_modified/2,
          generate_etag/2,
+         malformed_request/2,
          provide_content/2,
          accept_content/2]).
 
@@ -70,6 +71,10 @@ provide_content(ReqData, Route) ->
     Route1 = wtb_route:set_field(request, ReqData, Route),
     Data = wtb_route:call_content(get, Route1, {error, not_found}),
     Data.
+
+malformed_request(ReqData, Route) ->
+    Route1 = wtb_route:set_field(request, ReqData, Route),
+    wtb_route:call_bool(malformed_request, Route1, false).
 
 accept_content(ReqData, Route) ->
     Route1 = wtb_route:set_field(request, ReqData, Route),
