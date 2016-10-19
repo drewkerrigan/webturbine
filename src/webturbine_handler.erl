@@ -1,39 +1,35 @@
 -module(webturbine_handler).
 
--behaviour(cowboy_http_handler).
--behaviour(cowboy_websocket_handler).
-
 %% Shared exports
--export([service_available/2,
+-export([init/2]).
+-export([allow_missing_post/2,
+         websocket_handle/3,
+         websocket_info/3,
+         terminate/3,
+         service_available/2,
          allowed_methods/2,
          content_types_provided/2,
          content_types_accepted/2,
          resource_exists/2,
          delete_resource/2,
          last_modified/2,
-         generate_etag/2]).
--export([provide_content/2,
+         generate_etag/2,
+         provide_content/2,
          accept_content/2]).
 
-%% Webmachine exports
--export([init/1]).
--export([process_post/2,
-         post_is_create/2,
-         create_path/2]).
-
-%% Cowboy exports
--export([init/2]).
--export([allow_missing_post/2,
-         websocket_handle/3,
-         websocket_info/3,
-         websocket_terminate/3,
-         terminate/3]).
 
 -include("webturbine.hrl").
 
 %%====================================================================
-%% Shared Callbacks
+%% Cowboy Callbacks
 %%====================================================================
+
+init(ReqData, [Route=#wtb_route{handler_type=rest}]) ->
+    {cowboy_rest, ReqData, Route};
+init(ReqData, [Route=#wtb_route{handler_type=websocket}]) ->
+    Route1 = wtb_route:set_field(request, ReqData, Route),
+    Route2 = wtb_route:init(Route1),
+    {cowboy_websocket, ReqData, Route2}.
 
 service_available(ReqData, Route) ->
     Route1 = wtb_route:set_field(request, ReqData, Route),
@@ -62,7 +58,8 @@ delete_resource(ReqData, Route) ->
 
 provide_content(ReqData, Route) ->
     Route1 = wtb_route:set_field(request, ReqData, Route),
-    wtb_route:call_content(get, Route1, {error, not_found}).
+    Data = wtb_route:call_content(get, Route1, {error, not_found}),
+    Data.
 
 accept_content(ReqData, Route) ->
     Route1 = wtb_route:set_field(request, ReqData, Route),
@@ -73,26 +70,7 @@ accept_content(ReqData, Route) ->
             wtb_route:call_bool(put, Route1, false)
     end.
 
-last_modified(ReqData, Route) ->
-    Route1 = wtb_route:set_field(request, ReqData, Route),
-    wtb_route:call_noop(last_modified, Route1, undefined).
-
-generate_etag(ReqData, Route) ->
-    Route1 = wtb_route:set_field(request, ReqData, Route),
-    wtb_route:call_noop(etag, Route1, undefined).
-
-%%====================================================================
-%% Cowboy Callbacks
-%%====================================================================
-
-init(ReqData, [Route=#wtb_route{handler_type=rest}]) ->
-    {cowboy_rest, ReqData, Route};
-init(ReqData, [Route=#wtb_route{handler_type=websocket}]) ->
-    Route1 = wtb_route:set_field(request, ReqData, Route),
-    Route2 = wtb_route:init(Route1),
-    {cowboy_websocket, ReqData, Route2}.
-
-allow_missing_post(ReqData, Route) -> 
+allow_missing_post(ReqData, Route) ->
     Route1 = wtb_route:set_field(request, ReqData, Route),
     case wtb_route:call_noop(post_path, Route1, undefined) of
         {undefined, ReqData1, Route1} ->
@@ -101,39 +79,27 @@ allow_missing_post(ReqData, Route) ->
             {true, ReqData1, Route1}
     end.
 
+last_modified(ReqData, Route) ->
+    Route1 = wtb_route:set_field(request, ReqData, Route),
+    wtb_route:call_noop(last_modified, Route1, undefined).
+
+generate_etag(ReqData, Route) ->
+    Route1 = wtb_route:set_field(request, ReqData, Route),
+    wtb_route:call_noop(etag, Route1, undefined).
+
+terminate(Reason, ReqData, Route=#wtb_route{handler_type=websocket}) ->
+    Route1 = wtb_route:set_field(request, ReqData, Route),
+    {Resp, _, _, _, _} = wtb_route:call_websocket(terminate, Reason, Route1, ok),
+    Resp;
+terminate(Reason, ReqData, Route=#wtb_route{handler_type=rest}) ->
+    Route1 = wtb_route:set_field(request, ReqData, Route),
+    {Resp, _, _, _, _} = wtb_route:call_content(terminate, Route1, Reason),
+    Resp.
+
 websocket_handle(Message, ReqData, Route) ->
     Route1 = wtb_route:set_field(request, ReqData, Route),
-    wtb_route:call_websocket(websocket_handle, Message, Route1, ok).
+    wtb_route:call_websocket(handle, Message, Route1, ok).
 
 websocket_info(Message, ReqData, Route) ->
     Route1 = wtb_route:set_field(request, ReqData, Route),
-    wtb_route:call_websocket(websocket_info, Message, Route1, ok).
-
-websocket_terminate(Reason, ReqData, Route) ->
-    Route1 = wtb_route:set_field(request, ReqData, Route),
-    {Resp, _, _, _, _} = wtb_route:call_websocket(websocket_terminate, Reason, Route1, ok),
-    Resp.
-
-terminate(Reason, ReqData, Route) ->
-    Route1 = wtb_route:set_field(request, ReqData, Route),
-    {Resp, _, _, _, _} = wtb_route:call_websocket(terminate, Reason, Route1, ok),
-    Resp.
-
-%%====================================================================
-%% Webmachine Callbacks
-%%====================================================================
-
-init([Route]) ->
-    {ok, Route}.
-
-process_post(ReqData, Route) ->
-    Route1 = wtb_route:set_field(request, ReqData, Route),
-    wtb_route:call_bool(post, Route1, false).
-
-post_is_create(ReqData, Route) ->
-    Route1 = wtb_route:set_field(request, ReqData, Route),
-    {wtb_route:call_exists(post_path, Route), ReqData, Route1}.
-
-create_path(ReqData, Route) ->
-    Route1 = wtb_route:set_field(request, ReqData, Route),
-    wtb_route:call_content(post_path, Route1, undefined).
+    wtb_route:call_websocket(info, Message, Route1, ok).

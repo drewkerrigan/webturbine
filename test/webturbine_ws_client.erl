@@ -1,7 +1,5 @@
 -module(webturbine_ws_client).
 
--behaviour(websocket_client_handler).
-
 -export([
          start_link/1,
          init/2,
@@ -11,12 +9,14 @@
         ]).
 
 start_link(From) ->
+    io:format("Start Link ~p~n", [From]),
     crypto:start(),
     ssl:start(),
     websocket_client:start_link("ws://localhost:10001/socket", ?MODULE, [From]).
 
 init([From], _ConnState) ->
-    websocket_client:cast(self(), {text, <<"message 1">>}),
+    io:format("Init ~p~n", [From]),
+    ok = websocket_client:cast(self(), {text, <<"message 1">>}),
     {ok, {2, From}}.
 
 websocket_handle({pong, _}, _ConnState, State={_, From}) ->

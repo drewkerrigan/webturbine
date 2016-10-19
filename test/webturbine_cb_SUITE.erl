@@ -14,7 +14,7 @@
          }).
 
 suite() ->
-    [{timetrap,{seconds,30}}].
+    [{timetrap,{seconds,2}}].
 
 init_per_suite(Config) ->
     ibrowse:start(),
@@ -38,41 +38,45 @@ end_per_testcase(_TestCase, _Config) ->
 groups() ->
     [].
 
-all() -> 
+all() ->
     [route_test].
 
-route_test() -> 
+route_test() ->
     [].
 
-route_test(_Config) -> 
-    DL = webturbine:dispatch_cb([webturbine_test_resource]),
+route_test(_Config) ->
+    DL = webturbine:dispatch([webturbine_test_resource]),
     Context = start_server("127.0.0.1", DL),
 
     spawn(webturbine_ws_client, start_link, [self()]),
-    
-    receive M1 -> <<"Great, how about you! message 1">> = M1 end,
-    receive M2 -> <<"Great, how about you! hello, this is message #2">> = M2 end,
-    
-    {ok, "200", _, "something"} = 
+    receive
+        M1 ->
+            <<"Great, how about you! message 1">> = M1
+    end,
+    receive
+        M2 ->
+            <<"Great, how about you! hello, this is message #2">> = M2
+    end,
+
+    {ok, "200", _, "something"} =
         ibrowse:send_req(url(Context, "base/echo/something"), [], get, [], []),
-    {ok, "404", _, _} = 
+    {ok, "404", _, _} =
         ibrowse:send_req(url(Context, "clusters/nothere"), [], get, [], []),
-    {ok, "200", _, "here"} = 
+    {ok, "200", _, "here"} =
         ibrowse:send_req(url(Context, "clusters/here"), [], get, [], []),
-    {ok, "404", _, _} = 
+    {ok, "404", _, _} =
         ibrowse:send_req(url(Context, "clusters/nothere/nodes/any"), [], get, [], []),
-    {ok, "200", _, "Cluster: here, Node: mynode"} = 
+    {ok, "200", _, "Cluster: here, Node: mynode"} =
         ibrowse:send_req(url(Context, "clusters/here/nodes/mynode"), [], get, [], []),
-    {ok, "200", _, "{\"its\":\"json\"}"} = 
+    {ok, "200", _, "{\"its\":\"json\"}"} =
         ibrowse:send_req(url(Context, "short"), [], get, [], []),
-    {ok, "200", _, _} = 
+    {ok, "200", _, _} =
         ibrowse:send_req(url(Context, "static/ct_default.css"), [], get, [], []),
-    {ok, "200", _, "handler_value"} = 
+    {ok, "200", _, "handler_value"} =
         ibrowse:send_req(url(Context, "handler"), [], get, [], []),
 
     %% stop_server(Context),
     ok.
-    
 
 %%====================================================================
 %% Internal functions
@@ -80,17 +84,15 @@ route_test(_Config) ->
 
 start_server(_IP, DispatchList) ->
     application:ensure_all_started(cowboy),
-    Dispatch = 
+    Dispatch =
         cowboy_router:compile(
           [
            {'_', DispatchList}
           ]),
     {ok, Pid} = cowboy:start_clear(
                 http, 100, [{port, 10001}], #{env => #{dispatch => Dispatch}}),
-    
     #integration_state{webmachine_sup=Pid,
                        port=10001}.
-    
 
 stop_server(Context) ->
     stop_supervisor(Context#integration_state.webmachine_sup),
