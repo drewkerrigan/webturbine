@@ -4,7 +4,7 @@
 -type wtb_route_name() :: atom().
 -type wtb_route_path() :: [string() | atom()].
 -type wtb_type() :: json | binary | text | html | requested | any | none | string().
--type wtb_method() :: 'GET' | 'PUT' | 'POST' | 'DELETE'.
+-type wtb_method() :: 'GET' | 'PUT' | 'POST' | 'DELETE' | 'PATCH' | 'HEAD'.
 -type wtb_handler_type() :: rest | websocket.
 
 -record(wtb_route, {name :: wtb_route_name(),
